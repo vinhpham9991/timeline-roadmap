@@ -1,83 +1,107 @@
-# Task & Timeline Manager
+﻿# Task & Timeline Manager
 
-A production-ready task and timeline management web app built with **React + TypeScript + Vite**.
-
-It includes an interactive timeline with drag-and-drop scheduling, resize handles, zoom controls, filters, role-based colors, and local persistence.
+A modern React + TypeScript roadmap timeline app with drag, resize, milestone movement, and cloud sync.
 
 ## Tech Stack
 
-- React 18 + TypeScript
-- Vite
+- React 18 + TypeScript + Vite
 - TailwindCSS
-- Zustand (state + localStorage persistence)
-- dayjs (date handling)
-- dnd-kit (drag interactions)
+- Zustand
+- dayjs
+- Supabase (Postgres + Realtime)
 
 ## Features
 
-- Create task modal with:
-  - Task Name
-  - Project (reuse existing or create new)
-  - Assignee Name
-  - Role
-  - Start Date / Due Date
-- Edit task modal (double-click task bar)
-- Delete task from edit modal
-- Left detail panel for selected task
-- One-year horizontal timeline with zoom levels:
-  - Hour
-  - Day
-  - Month
-- Drag bars horizontally to shift schedule
-- Resize left/right edges to change duration
-- Mouse wheel zoom in/out
-- Tooltip on hover with full datetime info
-- Role-based color mapping
-- Filters by project, assignee, role
-- Current-date highlight line
-- Basic conflict detection for overlapping tasks with same assignee
-- Data persistence via localStorage
+- Interactive timeline (drag task, resize start/end, drag milestone)
+- Filters by project / assignee / role
+- Role color mapping
+- Header title/subtitle editable
+- Project delete from modal dropdown
+- Weekend + VN holiday highlights
+- Shared cloud data (multiple users see same tasks)
 
-## Local Development
+## 1) Local Setup
 
 ```bash
 npm install
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```
+
+Run:
+
+```bash
 npm run dev
 ```
 
-Then open the local URL shown by Vite (usually `http://localhost:5173`).
+## 2) Supabase Database Setup
 
-## Build for Production
+In Supabase SQL Editor, run:
 
-```bash
-npm run build
-npm run preview
+```sql
+create table if not exists public.tasks (
+  id text primary key,
+  title text not null,
+  project text not null,
+  assignee text not null,
+  role text not null,
+  start_date timestamptz not null,
+  end_date timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_tasks_updated_at on public.tasks;
+create trigger trg_tasks_updated_at
+before update on public.tasks
+for each row execute function public.set_updated_at();
+
+alter table public.tasks enable row level security;
+
+create policy "Allow anon read"
+on public.tasks
+for select
+to anon
+using (true);
+
+create policy "Allow anon insert"
+on public.tasks
+for insert
+to anon
+with check (true);
+
+create policy "Allow anon update"
+on public.tasks
+for update
+to anon
+using (true)
+with check (true);
+
+create policy "Allow anon delete"
+on public.tasks
+for delete
+to anon
+using (true);
 ```
 
-## Project Structure
+Enable Realtime for table `tasks`:
+- Supabase Dashboard -> Database -> Replication -> toggle `tasks` ON.
 
-```text
-src/
-  components/
-    filters/
-    layout/
-    ui/
-  features/
-    tasks/
-    timeline/
-  store/
-  types/
-  utils/
-```
-
-## Deploy to GitHub
-
-If your terminal says `git is not recognized`, install Git first:
-- Windows: https://git-scm.com/download/win
-- macOS: `brew install git`
-- Ubuntu/Debian: `sudo apt install git`
-
-Then run:
+## 3) Deploy to GitHub
 
 ```bash
 git init
@@ -88,58 +112,26 @@ git remote add origin <your-repo-url>
 git push -u origin main
 ```
 
-Example `<your-repo-url>`:
-- `https://github.com/<username>/<repo>.git`
-- `git@github.com:<username>/<repo>.git`
+## 4) Deploy to Vercel
 
-## Deploy to Vercel
+1. Import GitHub repo in Vercel.
+2. Framework: `Vite`
+3. Build command: `npm run build`
+4. Output directory: `dist`
+5. Add environment variables in Vercel Project Settings:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+6. Redeploy.
 
-This project is Vite + React and works out of the box on Vercel.
-
-### Option A: Deploy via Vercel Dashboard (recommended)
-
-1. Push code to GitHub (section above).
-2. Go to https://vercel.com/new
-3. Import your GitHub repository.
-4. Framework preset: `Vite` (auto-detected).
-5. Build command: `npm run build`
-6. Output directory: `dist`
-7. Click **Deploy**.
-
-### Option B: Deploy via Vercel CLI
+## 5) Build Check
 
 ```bash
-npm i -g vercel
-vercel login
-vercel
-```
-
-When prompted:
-- Set up and deploy: `Y`
-- Link to existing project: `N` (for first deploy)
-- Build command: `npm run build`
-- Output directory: `dist`
-
-For production deploy after first setup:
-
-```bash
-vercel --prod
-```
-
-## Troubleshooting Deploy
-
-- Local test before deploy:
-
-```bash
-npm install
 npm run build
 npm run preview
 ```
 
-- If Vercel build fails, ensure Node 18+ is used.
-- If GitHub import does not appear in Vercel, reconnect GitHub integration in Vercel account settings.
-
 ## Notes
 
-- Timeline interactions are custom-rendered for better control and performance.
-- No backend is required; all tasks are stored in the browser.
+- Data is now stored in Supabase, not localStorage tasks.
+- Anyone opening the deployed URL sees shared data from the same Supabase project.
+- Current RLS policies above allow anonymous public write access. For production security, add auth and stricter policies.

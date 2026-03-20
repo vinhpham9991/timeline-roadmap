@@ -27,12 +27,17 @@ function App() {
   const tasks = useTaskStore((state) => state.tasks);
   const selectedTaskId = useTaskStore((state) => state.selectedTaskId);
   const filters = useTaskStore((state) => state.filters);
+  const isLoading = useTaskStore((state) => state.isLoading);
+  const syncError = useTaskStore((state) => state.syncError);
+  const initialize = useTaskStore((state) => state.initialize);
+  const subscribeToTasks = useTaskStore((state) => state.subscribeToTasks);
   const setFilters = useTaskStore((state) => state.setFilters);
   const resetFilters = useTaskStore((state) => state.resetFilters);
   const setSelectedTask = useTaskStore((state) => state.setSelectedTask);
   const upsertTask = useTaskStore((state) => state.upsertTask);
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const deleteProject = useTaskStore((state) => state.deleteProject);
+
   const [zoom, setZoom] = useState<ZoomLevel>('day');
   const [modalState, setModalState] = useState<ModalState>({ open: false, mode: 'create' });
   const [branding, setBranding] = useState<AppBranding>(() => {
@@ -54,6 +59,12 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(branding));
   }, [branding]);
+
+  useEffect(() => {
+    void initialize();
+    const unsubscribe = subscribeToTasks();
+    return () => unsubscribe();
+  }, [initialize, subscribeToTasks]);
 
   const projects = useMemo(
     () => Array.from(new Set(tasks.map((task) => task.project))).sort((a, b) => a.localeCompare(b)),
@@ -168,6 +179,18 @@ function App() {
         </div>
       </header>
 
+      {isLoading ? (
+        <div className="mb-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">
+          Syncing tasks from cloud...
+        </div>
+      ) : null}
+
+      {syncError ? (
+        <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+          Cloud sync error: {syncError}
+        </div>
+      ) : null}
+
       <div className="mb-3">
         <TaskFiltersBar
           filters={filters}
@@ -205,4 +228,3 @@ function App() {
 }
 
 export default App;
-
